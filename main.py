@@ -297,7 +297,7 @@ class JoinReviewPlugin(Star):
     async def _is_reviewer(self, event: AstrMessageEvent, group_id: str, user_id: str) -> bool:
         if not user_id:
             return False
-        if self._on("allow_non_admin"):
+        if self._non_admin_allowed(group_id):
             return True
         if str(user_id) in self._list("extra_admins"):
             return True
@@ -307,6 +307,14 @@ class JoinReviewPlugin(Star):
         except Exception:
             pass
         return await self._role(event, group_id, user_id) in ("owner", "admin")
+
+    def _non_admin_allowed(self, group_id: str) -> bool:
+        if not self._on("allow_non_admin"):
+            return False
+        if group_id in self._list("non_admin_blacklist"):
+            return False
+        white = self._list("non_admin_whitelist")
+        return not white or group_id in white
 
     async def _role(self, event: AstrMessageEvent, group_id: str, user_id: str) -> str:
         info = await self._call(event, "get_group_member_info", group_id=int(group_id), user_id=int(user_id))

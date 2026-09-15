@@ -67,6 +67,18 @@
     "hint": "默认只有群主/群管理员能回复同意、拒绝、拉黑。开启后，群里任何人都可以处理这条通知。",
     "default": false
   },
+  "non_admin_whitelist": {
+    "description": "允许普通成员处理的群（白名单）",
+    "type": "list",
+    "hint": "只有这些群允许普通成员处理审核；留空表示所有群都允许（受总开关限制）。",
+    "default": []
+  },
+  "non_admin_blacklist": {
+    "description": "禁止普通成员处理的群（黑名单）",
+    "type": "list",
+    "hint": "这些群不允许普通成员处理，优先于白名单。",
+    "default": []
+  },
   "whitelist_groups": {
     "description": "生效群聊白名单",
     "type": "list",
