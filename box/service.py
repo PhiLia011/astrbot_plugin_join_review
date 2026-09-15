@@ -13,6 +13,9 @@ from .config import PluginConfig
 from .draw import CardMaker
 from .profile import BoxUserProfile
 
+# 头像下载超时（秒）——避免请求无限挂起
+AVATAR_TIMEOUT = 10
+
 library_display_options = [
     "names",
     "nicknames",
@@ -136,14 +139,33 @@ class BoxService:
         else:
             image = self.renderer.create(avatar, result.display)
             cache_path.write_bytes(image)
+            # 防御：缓存超过上限时清理最旧文件，避免长期运行无限增长
+            self._prune_card_cache()
 
         result.image = image
         return image
 
+    def _prune_card_cache(self, keep: int = 200) -> None:
+        """清理资料卡缓存：文件数超过上限时删除最旧的，避免缓存无限增长。"""
+        try:
+            files = [f for f in self.cfg.temp_dir.iterdir() if f.is_file()]
+            if len(files) <= keep:
+                return
+            files.sort(key=lambda f: f.stat().st_mtime)
+            for old_file in files[:-keep]:
+                try:
+                    old_file.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     async def _get_avatar(self, user_id: str) -> bytes | None:
         avatar_url = f"https://q4.qlogo.cn/headimg_dl?dst_uin={user_id}&spec=640"
         try:
-            async with aiohttp.ClientSession() as session:
+            # 修复BUG：显式设置超时，避免头像服务无响应时请求无限挂起
+            timeout = aiohttp.ClientTimeout(total=AVATAR_TIMEOUT)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 response = await session.get(avatar_url)
                 response.raise_for_status()
                 return await response.read()

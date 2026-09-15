@@ -64,7 +64,7 @@ class CardMaker:
         Returns:
             Rendered PNG bytes.
         """
-        reply_str = "\n".join(reply)
+        reply_str = "\n".join(reply or [])
 
         temp_img = Image.new("RGBA", (1, 1))
         temp_draw = ImageDraw.Draw(temp_img)
@@ -72,6 +72,12 @@ class CardMaker:
         bbox = temp_draw.textbbox((0, 0), no_emoji_reply, font=self.cute_font)
         text_width = int(bbox[2] - bbox[0])
         text_height = int(bbox[3] - bbox[1])
+
+        # 防御：无内容(reply 为空)时 bbox 高度可能为 0，会导致 avatar_size=0 崩溃
+        if text_height <= 0:
+            text_height = 20
+        if text_width <= 0:
+            text_width = 1
 
         img_height = text_height + self.theme.text_padding * 2
 

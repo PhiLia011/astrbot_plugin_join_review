@@ -12,11 +12,17 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 )
 
 
+# 头像下载超时（秒）——避免请求无限挂起
+AVATAR_TIMEOUT = 10
+
+
 async def get_avatar(user_id: str) -> bytes | None:
     """获取头像"""
     avatar_url = f"https://q4.qlogo.cn/headimg_dl?dst_uin={user_id}&spec=640"
     try:
-        async with aiohttp.ClientSession() as session:
+        # 修复BUG：显式设置超时，避免头像服务无响应时请求无限挂起
+        timeout = aiohttp.ClientTimeout(total=AVATAR_TIMEOUT)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             response = await session.get(avatar_url)
             response.raise_for_status()
             return await response.read()

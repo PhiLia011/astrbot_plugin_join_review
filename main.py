@@ -184,6 +184,9 @@ class JoinReviewPlugin(Star):
         if not group_id or not self._group_enabled(group_id):
             return
 
+        # 审核前清理过期的待审核记录（避免旧记录被引用"复活"操作）
+        self._prune_pending()
+
         matched = COMMAND_RE.match(str(event.get_message_str() or "").strip())
         if not matched:
             return
@@ -215,6 +218,10 @@ class JoinReviewPlugin(Star):
         if stage == "request":
             flag = str(target.get("flag") or "")
             approved = action == APPROVE
+            if not flag:
+                # 双保险：没有真实申请凭证时，不执行任何审核/拉黑操作
+                await self._send(event, group_id, Plain(text="未找到有效的待审核申请，请引用机器人的审核通知后再操作"))
+                return
             await self._answer_request(event, flag, approve=approved, reject_forever=action == BLACKLIST)
             if action == BLACKLIST:
                 self._add_blacklist(group_id, user_id)
@@ -224,6 +231,9 @@ class JoinReviewPlugin(Star):
             else:
                 text = _fmt(self._on_text("reject_reply"), user_id=user_id, nickname=nickname, group_id=group_id)
         else:
+            # 说明：pending 目前只会写入 stage="request" 的记录（见 on_group_request），
+            # 因此本分支（对"已入群成员"执行踢出/拉黑）实际不可达。
+            # 保留以备将来扩展 pending 来源时使用。
             if action == APPROVE:
                 text = _fmt(self._on_text("approve_reply"), user_id=user_id, nickname=nickname, group_id=group_id)
             else:
@@ -238,20 +248,51 @@ class JoinReviewPlugin(Star):
         await self._send(event, group_id, Plain(text=text))
         event.stop_event()
 
+    @staticmethod
+    def _pending_alive(item: dict[str, Any] | None) -> dict[str, Any]:
+        """校验待审核记录是否仍在有效期内；过期记录不再用于审核（防止旧记录被"复活"操作）。"""
+        if not item:
+            return {}
+        try:
+            ts = float(item.get("ts") or 0)
+        except (TypeError, ValueError):
+            ts = 0
+        if ts <= 0 or time.time() - ts > PENDING_TTL:
+            return {}
+        return item
+
+    def _find_pending_by_uid(self, user_id: str) -> dict[str, Any]:
+        """安全加固：只在待审核记录(pending)中查找目标，避免对任意用户误操作。"""
+        target = str(user_id or "").strip()
+        if not target:
+            return {}
+        for item in self.pending.values():
+            if str(item.get("user_id") or "").strip() == target:
+                return self._pending_alive(item)
+        return {}
+
     def _resolve_target(self, reply: Reply | None, at_qq: str, tail: str | None) -> dict[str, Any]:
+        # 1) 引用消息：只认机器人发出的审核通知(存在于 pending 中，且未超过有效期)
         if reply is not None:
-            item = self.pending.get(str(reply.id))
+            item = self._pending_alive(self.pending.get(str(reply.id)))
             if item:
                 return item
-            found = re.search(r"(\d{5,12})", str(getattr(reply, "message_str", "") or ""))
-            if found:
-                return {"stage": "request", "user_id": found.group(1)}
+            # 修复BUG：引用非审核消息时，不再从被引用文本中提取数字当目标，避免误拉黑/误操作
+
+        # 2) @某人：必须能在待审核记录中找到该用户
         if at_qq:
-            return {"stage": "request", "user_id": at_qq}
+            item = self._find_pending_by_uid(at_qq)
+            if item:
+                return item
+
+        # 3) 直接跟QQ号：同样必须存在于待审核记录中
         if tail:
             found = re.search(r"(\d{5,12})", tail)
             if found:
-                return {"stage": "request", "user_id": found.group(1)}
+                item = self._find_pending_by_uid(found.group(1))
+                if item:
+                    return item
+
         return {}
 
     def _drop_pending(self, reply: Reply | None) -> None:
@@ -327,10 +368,13 @@ class JoinReviewPlugin(Star):
         return not white or group_id in white
 
     def _is_blacklisted(self, group_id: str, user_id: str) -> bool:
+        # 全局黑名单("*")在任何生效范围下都有效
         if user_id in self.blacklist.get("*", []):
             return True
+        # 仅当生效范围为"按群"时，才检查本群的拉黑记录
+        # （修复BUG：原先 global 模式下遍历所有群记录，导致某群拉黑的人在其它群也被拒）
         if self._on_text("blacklist_scope") == "global":
-            return any(user_id in users for users in self.blacklist.values())
+            return False
         return user_id in self.blacklist.get(group_id, [])
 
     def _add_blacklist(self, group_id: str, user_id: str) -> None:
@@ -402,6 +446,10 @@ class JoinReviewPlugin(Star):
     def _dedup(tag: str, group_id: str, user_id: str) -> bool:
         key = (tag, group_id, user_id)
         now = time.time()
+        # 防御：条目过多时清理过期记录，避免 _seen 长期累积占用内存
+        if len(_seen) > 256:
+            for stale in [k for k, v in _seen.items() if now - v > DEDUP_TTL]:
+                _seen.pop(stale, None)
         if _seen.get(key, 0) > now - DEDUP_TTL:
             return False
         _seen[key] = now
@@ -463,8 +511,12 @@ class JoinReviewPlugin(Star):
 
     @staticmethod
     def _save(path: Path, data: Any) -> None:
+        """原子写入：先写临时文件再替换，避免写入中断导致 JSON 损坏、数据静默丢失。"""
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            text = json.dumps(data, ensure_ascii=False, indent=2)
+            tmp_path = path.with_name(f"{path.name}.tmp")
+            tmp_path.write_text(text, encoding="utf-8")
+            tmp_path.replace(path)
         except Exception as exc:
             logger.error(f"[JoinReview] 写入 {path.name} 失败: {exc}")
