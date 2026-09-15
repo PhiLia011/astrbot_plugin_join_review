@@ -112,40 +112,43 @@ class JoinReviewPlugin(Star):
                 await self._send(event, group_id, Plain(text=f"黑名单用户 {user_id} 的加群申请已自动拒绝"))
                 return
 
-            nickname = await self._stranger_name(event, user_id) or user_id
-            comment = str(raw.get("comment") or "").strip()
-            text = _fmt(
-                self._on_text("request_template"),
-                user_id=user_id,
-                nickname=nickname,
-                group_id=group_id,
-                comment=comment,
+            await self._send_notice(
+                event,
+                group_id,
+                user_id,
+                flag=str(raw.get("flag") or ""),
+                comment=str(raw.get("comment") or "").strip(),
             )
-            chain = []
-            if self._on("box_on_request"):
-                card = await self._render_card(event, group_id, user_id)
-                if card is not None:
-                    chain.append(card)
-            chain.append(Plain(text=text))
-
-            sent = await self._send(event, group_id, *chain, want_result=True)
-            message_id = str(sent.get("message_id") or "") if isinstance(sent, dict) else ""
-            if message_id:
-                self.pending[message_id] = {
-                    "stage": "request",
-                    "group_id": group_id,
-                    "user_id": user_id,
-                    "nickname": nickname,
-                    "flag": str(raw.get("flag") or ""),
-                    "ts": time.time(),
-                }
-                self._prune_pending()
-                self._save(self.pending_path, self.pending)
         except Exception as exc:
             logger.error(f"[JoinReview] 处理加群申请失败: {exc}")
 
+    async def _send_notice(self, event: AstrMessageEvent, group_id: str, user_id: str, flag: str = "", comment: str = "") -> None:
+        nickname = await self._stranger_name(event, user_id) or user_id
+        text = _fmt(self._on_text("request_template"), user_id=user_id, nickname=nickname, group_id=group_id, comment=comment)
+        chain = []
+        if self._on("box_on_request"):
+            card = await self._render_card(event, group_id, user_id)
+            if card is not None:
+                chain.append(card)
+        chain.append(Plain(text=text))
+
+        sent = await self._send(event, group_id, *chain, want_result=True)
+        message_id = str(sent.get("message_id") or "") if isinstance(sent, dict) else ""
+        if not message_id:
+            return
+        self.pending[message_id] = {
+            "stage": "request",
+            "group_id": group_id,
+            "user_id": user_id,
+            "nickname": nickname,
+            "flag": flag,
+            "ts": time.time(),
+        }
+        self._prune_pending()
+        self._save(self.pending_path, self.pending)
+
     # ------------------------------------------------------------------
-    # 二、入群：仅拦截黑名单（开盒由 box 插件负责）
+    # 二、入群：非管理员时补发审核通知（开盒由 box 插件负责）
     # ------------------------------------------------------------------
     @event_message_type(EventMessageType.GROUP_MESSAGE, priority=999)
     async def on_group_increase(self, event: AstrMessageEvent):
@@ -294,6 +297,8 @@ class JoinReviewPlugin(Star):
     async def _is_reviewer(self, event: AstrMessageEvent, group_id: str, user_id: str) -> bool:
         if not user_id:
             return False
+        if self._on("allow_non_admin"):
+            return True
         if str(user_id) in self._list("extra_admins"):
             return True
         try:
