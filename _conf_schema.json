@@ -1,0 +1,183 @@
+{
+  "enable": {
+    "description": "启用入群审核",
+    "type": "bool",
+    "default": true
+  },
+  "box_on_request": {
+    "description": "加群申请时附上资料卡",
+    "type": "bool",
+    "hint": "申请人尚未入群，资料卡只能取到公开的陌生人信息。",
+    "default": true
+  },
+  "request_template": {
+    "description": "加群申请通知文案",
+    "type": "text",
+    "hint": "可用变量：{user_id} {nickname} {group_id} {comment}",
+    "default": "有人申请加群，请确认是否放行\n\nQQ：{user_id}\n昵称：{nickname}\n\n引用本消息回复「同意」「拒绝」或「拉黑」"
+  },
+  "approve_reply": {
+    "description": "同意后的回复",
+    "type": "text",
+    "default": "已同意 {nickname}（{user_id}）的加群申请"
+  },
+  "reject_reply": {
+    "description": "拒绝后的回复",
+    "type": "text",
+    "default": "已拒绝 {nickname}（{user_id}）的加群申请"
+  },
+  "blacklist_reply": {
+    "description": "拉黑后的回复",
+    "type": "text",
+    "default": "已拉黑 {nickname}（{user_id}），并拒绝其加群申请"
+  },
+  "blacklist_scope": {
+    "description": "拉黑生效范围",
+    "type": "string",
+    "hint": "本群：只在该群生效；全局：所有受管群都会自动拒绝该用户。",
+    "default": "group",
+    "options": [
+      "group",
+      "global"
+    ],
+    "option_labels": [
+      "仅本群",
+      "全局"
+    ]
+  },
+  "reject_add_request": {
+    "description": "拉黑时同时拒绝其再加群",
+    "type": "bool",
+    "hint": "调用 set_group_kick 时带上 reject_add_request。",
+    "default": true
+  },
+  "auto_kick_blacklist": {
+    "description": "黑名单用户入群时自动踢出",
+    "type": "bool",
+    "default": true
+  },
+  "extra_admins": {
+    "description": "额外可审核的人员 QQ 列表",
+    "type": "list",
+    "default": []
+  },
+  "whitelist_groups": {
+    "description": "生效群聊白名单",
+    "type": "list",
+    "hint": "仅这些群启用；留空表示全部群生效。",
+    "default": []
+  },
+  "blacklist_groups": {
+    "description": "生效群聊黑名单",
+    "type": "list",
+    "hint": "这些群不启用，优先于白名单。",
+    "default": []
+  },
+  "display_options": {
+    "description": "信息显示选项",
+    "type": "list",
+    "hint": "打勾表示显示，取消勾选表示不显示",
+    "options": [
+      "QQ号",
+      "UID",
+      "QID",
+      "昵称",
+      "备注",
+      "群昵称",
+      "群头衔",
+      "群身份",
+      "性别",
+      "生日",
+      "星座",
+      "生肖",
+      "年龄",
+      "血型",
+      "电话",
+      "邮箱",
+      "家乡",
+      "现居",
+      "地区",
+      "学校",
+      "职位",
+      "职业",
+      "个性标签",
+      "风险账号",
+      "机器人账号",
+      "QQVIP",
+      "年VIP",
+      "VIP等级",
+      "群等级",
+      "加群时间",
+      "最后发言",
+      "QQ等级",
+      "注册时间",
+      "登录天数",
+      "隐藏QQ等级",
+      "特权图标",
+      "屏蔽用户",
+      "免打扰",
+      "特别关心",
+      "空间特别关心",
+      "自定义状态",
+      "企点企业",
+      "签名"
+    ],
+    "default": [
+      "QQ号",
+      "QID",
+      "昵称",
+      "备注",
+      "群昵称",
+      "群头衔",
+      "群身份",
+      "性别",
+      "生日",
+      "星座",
+      "生肖",
+      "年龄",
+      "血型",
+      "电话",
+      "邮箱",
+      "家乡",
+      "现居",
+      "地区",
+      "职业",
+      "个性标签",
+      "风险账号",
+      "机器人账号",
+      "QQVIP",
+      "年VIP",
+      "VIP等级",
+      "群等级",
+      "加群时间",
+      "最后发言",
+      "QQ等级",
+      "注册时间",
+      "登录天数",
+      "隐藏QQ等级",
+      "自定义状态",
+      "企点企业",
+      "签名",
+      "隐藏特权图标"
+    ]
+  },
+  "desensitize": {
+    "description": "信息脱敏",
+    "type": "bool",
+    "hint": "对敏感信息进行脱敏处理，一般用不到，正常使用时没有敏感信息",
+    "default": true
+  },
+  "mystery_url": {
+    "description": "拓展配置项",
+    "hint": "无需填写，仅供开发人员使用",
+    "type": "string",
+    "default": ""
+  },
+  "mystery_cookies": {
+    "description": "cookies",
+    "hint": "",
+    "type": "string",
+    "invisible": true,
+    "default": ""
+  }
+}

@@ -1,0 +1,10 @@
+name: astrbot_plugin_join_review
+display_name: 入群审核
+desc: 有人申请加群时在群里发通知并附上申请人资料卡，群主/管理员引用消息回复「同意 / 拒绝 / 拉黑」
+short_desc: 加群申请审核（带资料卡）
+version: 1.0.0
+author: Firefly
+repo: https://github.com/PhiLia011/astrbot_plugin_join_review
+support_platforms:
+  - aiocqhttp
+astrbot_version: ">=4.14.0"
