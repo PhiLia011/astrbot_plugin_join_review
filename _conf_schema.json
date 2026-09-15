@@ -62,9 +62,9 @@
     "default": []
   },
   "allow_non_admin": {
-    "description": "允许非管理员处理审核",
+    "description": "允许普通群成员也能处理",
     "type": "bool",
-    "hint": "默认只有群主/群管理员能回复同意、拒绝、拉黑；开启后群里任何人都可以处理。",
+    "hint": "默认只有群主/群管理员能回复同意、拒绝、拉黑。开启后，群里任何人都可以处理这条通知。",
     "default": false
   },
   "whitelist_groups": {
