@@ -1,5 +1,8 @@
 import aiohttp
 
+# 资料库查询超时（秒）——避免第三方服务无响应时请求无限挂起
+LIBRARY_TIMEOUT = 10
+
 
 async def fetch_library_info(
     url: str,
@@ -15,7 +18,9 @@ async def fetch_library_info(
     }
     if cookies:
         headers["Cookie"] = cookies
-    async with aiohttp.ClientSession() as session:
+    # 修复BUG：显式设置超时，避免请求无限挂起
+    timeout = aiohttp.ClientTimeout(total=LIBRARY_TIMEOUT)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         resp = await session.get(
             url=f"{url}/api/query",
             params={"value": target_id},

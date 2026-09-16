@@ -248,9 +248,9 @@ class BoxUserProfile:
         try:
             if self.birthday_year and self.birthday_month and self.birthday_day:
                 return date(
-                    int(self.birthday_year),
-                    int(self.birthday_month),
-                    int(self.birthday_day),
+                    self._safe_int(self.birthday_year),
+                    self._safe_int(self.birthday_month),
+                    self._safe_int(self.birthday_day),
                 )
         except (TypeError, ValueError):
             return None
@@ -307,7 +307,7 @@ class BoxUserProfile:
                 return [f"{label}：{self.age}岁"] if self.age else []
             case "kBloodType":
                 if self.blood_type:
-                    return [f"{label}：{self._get_blood_type(int(self.blood_type))}"]
+                    return [f"{label}：{self._get_blood_type(self._safe_int(self.blood_type))}"]
                 return []
             case "phoneNum":
                 if self.phone_number and self.phone_number != "-":
@@ -333,7 +333,7 @@ class BoxUserProfile:
                 return [f"{label}：{self.pos}"] if self.pos else []
             case "makeFriendCareer":
                 if self.career and self.career != "0":
-                    return [f"{label}：{self._get_career(int(self.career))}"]
+                    return [f"{label}：{self._get_career(self._safe_int(self.career))}"]
                 return []
             case "labels":
                 return [f"{label}：{self.labels}"] if self.labels else []
@@ -346,42 +346,42 @@ class BoxUserProfile:
             case "is_years_vip":
                 return [f"{label}：已开"] if self.is_years_vip else []
             case "vip_level":
-                if self.vip_level and int(self.vip_level) != 0:
+                if self.vip_level and self._safe_int(self.vip_level) != 0:
                     return [f"{label}：{self.vip_level}"]
                 return []
             case "level":
                 return (
-                    [f"{label}：{int(self.group_level)}级"] if self.group_level else []
+                    [f"{label}：{self._safe_int(self.group_level)}级"] if self.group_level else []
                 )
             case "join_time":
                 if self.join_time:
                     return [
                         f"{label}："
-                        f"{datetime.fromtimestamp(int(self.join_time)).strftime('%Y-%m-%d')}"
+                        f"{datetime.fromtimestamp(self._safe_ts(self.join_time)).strftime('%Y-%m-%d')}"
                     ]
                 return []
             case "last_sent_time":
                 if self.last_sent_time:
                     return [
                         f"{label}："
-                        f"{datetime.fromtimestamp(int(self.last_sent_time)).strftime('%Y-%m-%d %H:%M')}"
+                        f"{datetime.fromtimestamp(self._safe_ts(self.last_sent_time)).strftime('%Y-%m-%d %H:%M')}"
                     ]
                 return []
             case "qqLevel":
                 if self.hide_qq_level:
                     return [f"{label}：隐藏"]
                 if self.qq_level:
-                    return [f"{label}：{self._format_qq_level(int(self.qq_level))}"]
+                    return [f"{label}：{self._format_qq_level(self._safe_int(self.qq_level))}"]
                 return []
             case "reg_time":
                 if self.reg_time:
                     return [
                         f"{label}："
-                        f"{datetime.fromtimestamp(int(self.reg_time)).strftime('%Y年')}"
+                        f"{datetime.fromtimestamp(self._safe_ts(self.reg_time)).strftime('%Y年')}"
                     ]
                 return []
             case "login_days":
-                if self.login_days and int(self.login_days) != 0:
+                if self.login_days and self._safe_int(self.login_days) != 0:
                     return [f"{label}：{self.login_days}天"]
                 return []
             case "isHidePrivilegeIcon":
@@ -560,6 +560,25 @@ class BoxUserProfile:
         blood_types = {1: "A型", 2: "B型", 3: "O型", 4: "AB型", 5: "其他血型"}
         return blood_types.get(num, f"血型{num}")
 
+    @staticmethod
+    def _safe_int(value: Any, default: int = 0) -> int:
+        """安全转换为 int；非法值返回默认值，避免脏数据导致整张资料卡渲染失败。"""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _safe_ts(value: Any) -> int:
+        """安全转换为时间戳；非法或超出合理范围(2000~2100年)时返回 0。"""
+        try:
+            ts = int(value)
+        except (TypeError, ValueError):
+            return 0
+        if 946684800 <= ts <= 4102444800:
+            return ts
+        return 0
+
     def _parse_home_town(self, home_town_code: str) -> str:
         country_map = {
             "49": "中国",
@@ -580,7 +599,10 @@ class BoxUserProfile:
             "107": "新疆",
         }
 
-        country_code, province_code, _ = home_town_code.split("-")
+        parts = str(home_town_code).split("-")
+        if len(parts) < 2:
+            return f"未知({home_town_code})"
+        country_code, province_code = parts[0], parts[1]
         country = country_map.get(country_code, f"外国{country_code}")
 
         if country_code != "49":
