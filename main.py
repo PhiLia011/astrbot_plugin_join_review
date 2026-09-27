@@ -124,7 +124,20 @@ class JoinReviewPlugin(Star):
 
     async def _send_notice(self, event: AstrMessageEvent, group_id: str, user_id: str, flag: str = "", comment: str = "") -> None:
         nickname = await self._stranger_name(event, user_id) or user_id
-        text = _fmt(self._on_text("request_template"), user_id=user_id, nickname=nickname, group_id=group_id, comment=comment)
+        template = self._on_text("request_template")
+        text = _fmt(template, user_id=user_id, nickname=nickname, group_id=group_id, comment=comment)
+        # 申请人的验证信息（留言 / 加群问题答案）：单独显示一行，没填就不显示。
+        # 模板里已经用了 {comment} 的话就不再重复追加。
+        if comment and "{comment}" not in template:
+            line = _fmt(
+                self._on_text("request_comment_template"),
+                user_id=user_id,
+                nickname=nickname,
+                group_id=group_id,
+                comment=comment,
+            ).strip()
+            if line:
+                text = f"{text}\n\n{line}"
         chain = []
         if self._on("box_on_request"):
             card = await self._render_card(event, group_id, user_id)
