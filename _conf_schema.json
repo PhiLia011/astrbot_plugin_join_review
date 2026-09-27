@@ -16,6 +16,12 @@
     "hint": "可用变量：{user_id} {nickname} {group_id} {comment}",
     "default": "有人申请加群，请确认是否放行\n\nQQ：{user_id}\n昵称：{nickname}\n\n引用本消息回复「同意」「拒绝」或「拉黑」"
   },
+  "request_comment_template": {
+    "description": "加群验证信息文案",
+    "type": "text",
+    "hint": "申请人留言或回答了加群问题时会显示这行，没填就不显示；留空可关闭。可用变量：{comment}",
+    "default": "验证信息：{comment}"
+  },
   "approve_reply": {
     "description": "同意后的回复",
     "type": "text",
