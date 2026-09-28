@@ -332,7 +332,7 @@ class JoinReviewPlugin(Star):
                 include_library=include_library,
             )
         except Exception as exc:
-            logger.debug(f"[JoinReview] 获取资料失败 {user_id}: {exc}")
+            logger.warning(f"[JoinReview] 获取资料失败 {user_id}: {exc}", exc_info=True)
             return None
 
     async def _render_card(self, event: AstrMessageEvent, group_id: str, user_id: str, include_library: bool = False) -> Any | None:
@@ -342,7 +342,7 @@ class JoinReviewPlugin(Star):
         try:
             return Image.fromBytes(await self.box.render_box_image(result))
         except Exception as exc:
-            logger.debug(f"[JoinReview] 渲染资料卡失败 {user_id}: {exc}")
+            logger.warning(f"[JoinReview] 渲染资料卡失败 {user_id}: {exc}", exc_info=True)
             return None
 
     # ------------------------------------------------------------------
@@ -439,20 +439,33 @@ class JoinReviewPlugin(Star):
         return str(info.get("nickname") or "").strip() if isinstance(info, dict) else ""
 
     async def _send(self, event: AstrMessageEvent, group_id: str, *chain: Any, want_result: bool = False) -> Any:
-        bot = getattr(event, "bot", None)
-        parser = getattr(event, "_parse_onebot_json", None)
-        if bot is not None and callable(parser):
-            try:
-                payload = await parser(MessageChain(chain=list(chain)))
-                result = await bot.send_group_msg(group_id=int(group_id), message=payload)
-                return result if want_result else True
-            except Exception as exc:
-                logger.debug(f"[JoinReview] send_group_msg 失败，改用 context 发送: {exc}")
+        messages = list(chain)
+        result = await self._send_group(event, group_id, messages)
+        # 带资料卡发送失败时，退成纯文字再发一次，保证通知至少能出去
+        if result is None and not all(isinstance(item, Plain) for item in messages):
+            logger.warning("[JoinReview] 资料卡发送失败，改为只发文字通知")
+            text_only = [item for item in messages if isinstance(item, Plain)]
+            result = await self._send_group(event, group_id, text_only)
+        if result is not None:
+            return result if want_result else True
         try:
-            await self.context.send_message(event.unified_msg_origin, MessageChain(chain=list(chain)))
+            await self.context.send_message(event.unified_msg_origin, MessageChain(chain=messages))
             return True
         except Exception as exc:
-            logger.error(f"[JoinReview] 发送消息失败: {exc}")
+            logger.error(f"[JoinReview] 发送消息失败: {exc}", exc_info=True)
+            return None
+
+    async def _send_group(self, event: AstrMessageEvent, group_id: str, messages: list[Any]) -> Any | None:
+        """直连 OneBot 发送；只有这条路径会返回 message_id，引用审批依赖它。"""
+        bot = getattr(event, "bot", None)
+        parser = getattr(event, "_parse_onebot_json", None)
+        if bot is None or not callable(parser) or not messages:
+            return None
+        try:
+            payload = await parser(MessageChain(chain=messages))
+            return await bot.send_group_msg(group_id=int(group_id), message=payload)
+        except Exception as exc:
+            logger.warning(f"[JoinReview] send_group_msg 失败: {exc}", exc_info=True)
             return None
 
     @staticmethod

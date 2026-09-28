@@ -138,7 +138,13 @@ class BoxService:
             image = cache_path.read_bytes()
         else:
             image = self.renderer.create(avatar, result.display)
-            cache_path.write_bytes(image)
+            try:
+                # 防御：缓存目录可能被 AstrBot 清理掉，写之前先确保它还在
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                cache_path.write_bytes(image)
+            except Exception as exc:
+                # 缓存只是优化，写不进去也不能影响本次发送
+                logger.warning(f"写入资料卡缓存失败 {cache_path.name}: {exc}")
             # 防御：缓存超过上限时清理最旧文件，避免长期运行无限增长
             self._prune_card_cache()
 
